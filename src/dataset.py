@@ -33,7 +33,6 @@ class EuroSatMS(Dataset):
 
         print(f"\n{c.OKGREEN}Preloading images...{c.ENDC}")
         print(f"\n{c.OKCYAN}Images:         {len(dataframe)}{c.ENDC}")
-        print(f"{c.OKCYAN}Augmentations:  {len(dataframe) * self.num_aug}{c.ENDC}")
         print(f"{c.OKCYAN}Jobs:           {n_jobs} {c.ENDC}\n")
 
         start_time = time.time()
@@ -67,18 +66,33 @@ class EuroSatMS(Dataset):
 
         image = image[self.select_chan].astype(np.float32)
 
-        rgb_min, rgb_max = image.min(), image.max()
-        image = (image - rgb_min) / (rgb_max - rgb_min)
-        image = image.clip(0, 1)
+        # rgb_min, rgb_max = image.min(), image.max()
+        # image = (image - rgb_min) / (rgb_max - rgb_min)
+        # image = image.clip(0, 1)
 
-        if self.feature_extractor == "hog":
-            features = extract_hog_features(image)
-        elif self.feature_extractor == "color_hist":
-            features = extract_color_hist(image)
-        else:
-            features = image.flatten()
+        # minmax scale image channel wise
+        for i in range(image.shape[0]):
+            min_val, max_val = image[i].min(), image[i].max()
+            image[i] = (image[i] - min_val) / (max_val - min_val)
+            image[i] = image[i].clip(0, 1)
+
+        image = (image * 255).astype(np.uint8)
+
+        features = []
+        for method in self.feature_extractor:
+            if method == "hog":
+                feats = extract_hog_features(image)
+                feats = feats.flatten()
+                features.extend(feats)
+            elif method == "color_hist":
+                feats = extract_color_hist(image)
+                feats = feats.flatten()
+                features.extend(feats)
+            else:
+                raise ValueError(f"Unknown feature extraction method: {method}")
 
         target = self.dataframe.iloc[idx, 1]
+        target = self.enc.transform([target])[0]
 
         return features, target, idx
 
@@ -90,7 +104,5 @@ class EuroSatMS(Dataset):
         image = image.astype(np.float32)
 
         target = self.targets[idx]
-        target = self.enc.transform(np.array([target]).reshape(-1, 1)).toarray()
-        target = torch.tensor(target.flatten(), dtype=torch.float32)
 
         return image, target

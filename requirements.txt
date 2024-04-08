@@ -5,3 +5,6 @@ joblib
 opencv-python
 scikit-learn
 pandas
+xgboost
+scikit-image
+scikit-optimize
